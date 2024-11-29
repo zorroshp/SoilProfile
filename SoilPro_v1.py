@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 class EnhancedTable(QTableWidget):
     def __init__(self, rows, columns):
         super().__init__(rows, columns)
-        self.setHorizontalHeaderLabels(["Layer Name", "Start Level\n(m)", "End Level\n(m)", "SPT Value"])
+        self.setHorizontalHeaderLabels(["Layer Name", "Start Level (m)", "End Level (m)", "SPT Value"])
         self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.context_menu)
@@ -45,7 +45,6 @@ class EnhancedTable(QTableWidget):
         selected_ranges = self.selectedRanges()
         if not selected_ranges:
             return
-
         text = ""
         for selected_range in selected_ranges:
             for row in range(selected_range.topRow(), selected_range.bottomRow() + 1):
@@ -142,6 +141,8 @@ class SoilProfileApp(QMainWindow):
         container = QWidget()
         container.setLayout(main_layout)
         self.setCentralWidget(container)
+        pass
+
 
     def generate_plot(self):
         borehole1 = self.get_borehole_data(self.bh1_table)
@@ -160,12 +161,43 @@ class SoilProfileApp(QMainWindow):
     def get_borehole_data(self, table):
         data = []
         for row in range(table.rowCount()):
-            layer = table.item(row, 0).text() if table.item(row, 0) else ""
-            start = float(table.item(row, 1).text()) if table.item(row, 1) else 0
-            end = float(table.item(row, 2).text()) if table.item(row, 2) else 0
-            spt = int(table.item(row, 3).text()) if table.item(row, 3) else 0
+            layer = table.item(row, 0).text().strip() if table.item(row, 0) and table.item(row, 0).text() else ""
+            start = table.item(row, 1).text().strip() if table.item(row, 1) and table.item(row, 1).text() else ""
+            end = table.item(row, 2).text().strip() if table.item(row, 2) and table.item(row, 2).text() else ""
+            spt = table.item(row, 3).text().strip() if table.item(row, 3) and table.item(row, 3).text() else ""
+
+            # Check if the entire row is empty
+            if not any([layer, start, end, spt]):
+                continue  # Skip this row
+
+            # Check if any required field is empty
+            if not all([layer, start, end, spt]):
+                QMessageBox.warning(
+                    self,
+                    "Data Warning",
+                    f"Row {row + 1} has missing values. Please ensure all fields are filled."
+                )
+                continue  # Skip this row but allow the program to continue
+
+            # Convert values to appropriate types, with error handling
+            try:
+                start = float(start)
+                end = float(end)
+                spt = int(spt)
+            except ValueError:
+                QMessageBox.warning(
+                    self,
+                    "Data Warning",
+                    f"Row {row + 1} contains invalid numeric values. Please correct them."
+                )
+                continue  # Skip this row but allow the program to continue
+
+            # Append the row data to the list
             data.append({"layer": layer, "start": start, "end": end, "spt": spt})
+
         return data
+
+
 
     def plot_soil_stack(self, axis, borehole_data, title):
         for layer in borehole_data:
@@ -188,23 +220,43 @@ class SoilProfileApp(QMainWindow):
                 df.to_excel(path, index=False)
 
     def import_data(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Open File", "", "CSV Files (*.csv);;Excel Files (*.xlsx)")
-        if path:
-            if path.endswith('.csv'):
-                df = pd.read_csv(path)
-            else:
-                df = pd.read_excel(path)
-            self.load_data_into_table(df)
+            path, _ = QFileDialog.getOpenFileName(self, "Open File", "", "CSV Files (*.csv);;Excel Files (*.xlsx)")
+            if path:
+                df = pd.read_csv(path) if path.endswith('.csv') else pd.read_excel(path)
+                self.load_data_into_table(df, 1, self.bh1_table)  # Load data for Borehole 1
+                self.load_data_into_table(df, 2, self.bh2_table)  # Load data for Borehole 2
 
-    def load_data_into_table(self, df):
-        self.bh1_table.setRowCount(0)
-        self.bh2_table.setRowCount(0)
-        for i, row in df.iterrows():
-            self.bh1_table.insertRow(i)
-            self.bh2_table.insertRow(i)
-            for j, value in enumerate(row):
-                self.bh1_table.setItem(i, j, QTableWidgetItem(str(value)))
-                self.bh2_table.setItem(i, j, QTableWidgetItem(str(value)))
+    def load_data_into_table(self, df, borehole_id, table):
+        # Clear existing data in the table
+        table.setRowCount(0)
+        filtered_df = df[df['Borehole'] == borehole_id]
+        for i, row in filtered_df.iterrows():
+            row_idx = table.rowCount()
+            table.insertRow(row_idx)
+            # Ensure columns are correctly mapped and items are editable
+            layer_item = QTableWidgetItem(str(row['Layer Name']))
+            layer_item.setFlags(layer_item.flags() | Qt.ItemIsEditable)
+            table.setItem(row_idx, 0, layer_item)
+
+            start_level_item = QTableWidgetItem(str(row['Start Level (m)']))
+            start_level_item.setFlags(start_level_item.flags() | Qt.ItemIsEditable)
+            table.setItem(row_idx, 1, start_level_item)
+
+            end_level_item = QTableWidgetItem(str(row['End Level (m)']))
+            end_level_item.setFlags(end_level_item.flags() | Qt.ItemIsEditable)
+            table.setItem(row_idx, 2, end_level_item)
+
+            spt_value_item = QTableWidgetItem(str(row['SPT Value']))
+            spt_value_item.setFlags(spt_value_item.flags() | Qt.ItemIsEditable)
+            table.setItem(row_idx, 3, spt_value_item)
+        while table.rowCount() < 15:
+            row_idx = table.rowCount()
+            table.insertRow(row_idx)
+            for col in range(4):  # Assuming 4 columns
+                item = QTableWidgetItem("")
+                item.setFlags(item.flags() | Qt.ItemIsEditable)
+                table.setItem(row_idx, col, item)
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

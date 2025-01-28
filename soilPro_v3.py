@@ -41,7 +41,7 @@ class EnhancedTable(QTableWidget):
             self.setColumnWidth(col, max_word_width + padding)
             self.horizontalHeaderItem(col).setToolTip(header_text.replace('\n', ' '))
         
-        self.horizontalHeader().setFixedHeight(font_metrics.height() * 3)
+        self.horizontalHeader().setFixedHeight(font_metrics.height() * 4)
         self.horizontalHeader().setStyleSheet("""
             QHeaderView::section {
                 text-align: center;

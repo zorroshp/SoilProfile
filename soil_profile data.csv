@@ -1,7 +1,7 @@
-Borehole,Layer Name,Start Level (m),End Level (m),SPT Value
-1,Clay,0,2,15
-1,Sand,2,5,10
-1,Gravel,5,10,20
-2,Silt,0,3,12
-2,Loam,3,6,9
-2,Peat,6,10,5
+Borehole,Layer No,Layer Name,Start Level (m),End Level (m),SPT Value
+1,1,Clay,10,8,15
+1,2,Sand,8,5,10
+1,3,Gravel,5,0,20
+2,1,Silt,12,8,12
+2,2,Loam,8,4,9
+2,3,Peat,4,0,5

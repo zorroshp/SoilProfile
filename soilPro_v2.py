@@ -6,6 +6,7 @@ from PyQt5.QtWidgets import (
     QTableWidgetItem, QSpinBox, QHBoxLayout, QHeaderView, QMenu, QMessageBox, QFileDialog, QLineEdit
 )
 from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QClipboard
 from matplotlib.backends.backend_qt5agg import (
     FigureCanvasQTAgg as FigureCanvas,
     NavigationToolbar2QT as NavigationToolbar
@@ -17,9 +18,10 @@ class EnhancedTable(QTableWidget):
     def __init__(self, rows, columns):
         super().__init__(rows, columns)
         self.setHorizontalHeaderLabels(["Layer Name", "Start Level (m)", "End Level (m)", "SPT Value"])
-        self.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.context_menu)
+        self.clipboard = QApplication.clipboard()
         self.setMinimumRowCount(15)
 
     def minimumRowCount(self):
@@ -39,11 +41,44 @@ class EnhancedTable(QTableWidget):
         for item in self.selectedItems():
             item.setText("")
 
+    def copy_clipboard(self):
+        selected_ranges = self.selectedRanges()
+        if not selected_ranges:
+            return
+        text = ""
+        for selected_range in selected_ranges:
+            for row in range(selected_range.topRow(), selected_range.bottomRow() + 1):
+                for col in range(selected_range.leftColumn(), selected_range.rightColumn() + 1):
+                    item = self.item(row, col)
+                    text += item.text() + '\t' if item else '\t'
+                text = text.rstrip('\t') + '\n'
+        self.clipboard.setText(text.strip())
+
+    def paste_clipboard(self):
+        text = self.clipboard.text()
+        rows = text.split('\n')
+        current_row = self.currentRow()
+        current_col = self.currentColumn()
+        for r, row in enumerate(rows):
+            if row.strip():
+                cells = row.split('\t')
+                for c, cell in enumerate(cells):
+                    row_position = current_row + r
+                    col_position = current_col + c
+                    if row_position < self.rowCount() and col_position < self.columnCount():
+                        self.setItem(row_position, col_position, QTableWidgetItem(cell))
+
     def context_menu(self, position):
         menu = QMenu()
+        copy_action = menu.addAction("Copy")
+        paste_action = menu.addAction("Paste")
         delete_action = menu.addAction("Clear")
         action = menu.exec_(self.viewport().mapToGlobal(position))
-        if action == delete_action:
+        if action == copy_action:
+            self.copy_clipboard()
+        elif action == paste_action:
+            self.paste_clipboard()
+        elif action == delete_action:
             self.clearSelectedCells()
 
 
@@ -90,13 +125,7 @@ class SoilProfileApp(QMainWindow):
         # Buttons
         self.plot_button = QPushButton("Generate Plot")
         self.plot_button.clicked.connect(self.generate_plot)
-        self.export_button = QPushButton("Export Data")
-        self.export_button.clicked.connect(self.export_data)
-        self.import_button = QPushButton("Import Data")
-        self.import_button.clicked.connect(self.import_data)
-        input_layout.addWidget(self.plot_button, 6, 0)
-        input_layout.addWidget(self.export_button, 6, 1)
-        input_layout.addWidget(self.import_button, 7, 0, 1, 2)
+        input_layout.addWidget(self.plot_button, 6, 0, 1, 2)
 
         # Matplotlib canvas
         self.figure, self.ax = plt.subplots(1, 2, figsize=(10, 10))
@@ -157,42 +186,11 @@ class SoilProfileApp(QMainWindow):
     def plot_soil_stack(self, axis, borehole_data, title):
         for layer in borehole_data:
             axis.fill_betweenx([layer["start"], layer["end"]], 0, 1, color="skyblue")
-            axis.text(-0.1, (layer["start"] + layer["end"]) / 2, f"{layer['layer']} ({layer['spt']})", ha="right")
+            axis.text(0.5, (layer["start"] + layer["end"]) / 2, f"{layer['layer']} ({layer['spt']})", ha="center")
         axis.set_ylim(max(borehole_data, key=lambda x: x["end"])["end"], min(borehole_data, key=lambda x: x["start"])["start"])
         axis.set_title(title)
         axis.set_xticks([])
         axis.set_ylabel("Level (mSHD)")
-
-    def export_data(self):
-        path, _ = QFileDialog.getSaveFileName(self, "Save File", "", "CSV Files (*.csv)")
-        if path:
-            bh1_data = self.get_borehole_data(self.bh1_table)
-            bh2_data = self.get_borehole_data(self.bh2_table)
-            df1 = pd.DataFrame(bh1_data)
-            df2 = pd.DataFrame(bh2_data)
-            df1["Borehole"] = "Borehole 1"
-            df2["Borehole"] = "Borehole 2"
-            final_df = pd.concat([df1, df2])
-            final_df.to_csv(path, index=False)
-
-    def import_data(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Open File", "", "CSV Files (*.csv)")
-        if path:
-            df = pd.read_csv(path)
-            self.load_data_into_table(df, "Borehole 1", self.bh1_table)
-            self.load_data_into_table(df, "Borehole 2", self.bh2_table)
-
-    def load_data_into_table(self, df, borehole_name, table):
-        table.setRowCount(0)
-        filtered_df = df[df['Borehole'] == borehole_name]
-        for i, row in filtered_df.iterrows():
-            row_idx = table.rowCount()
-            table.insertRow(row_idx)
-            for j, col_name in enumerate(["Layer Name", "Start Level (m)", "End Level (m)", "SPT Value"]):
-                item = QTableWidgetItem(str(row[col_name]))
-                item.setFlags(item.flags() | Qt.ItemIsEditable)
-                table.setItem(row_idx, j, item)
-        table.setMinimumRowCount(15)
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@ from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QVBoxLayout, QGridLayout, QSplitter,
     QWidget, QLabel, QPushButton, QTableWidget, QTableWidgetItem,
     QSpinBox, QHBoxLayout, QHeaderView, QMenu, QMessageBox, QLineEdit,
-    QFileDialog
+    QFileDialog, QComboBox
 )
 from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtGui import QFontMetrics, QClipboard
@@ -13,6 +13,8 @@ from matplotlib.backends.backend_qt5agg import (
     NavigationToolbar2QT as NavigationToolbar
 )
 import matplotlib.pyplot as plt
+from matplotlib.colors import LinearSegmentedColormap
+import numpy as np
 
 
 class EnhancedTable(QTableWidget):
@@ -100,16 +102,27 @@ class EnhancedTable(QTableWidget):
         else:
             super().keyPressEvent(event)
 
+
 class SoilProfileApp(QMainWindow):
     INPUT_WIDTH = 400
     PLOT_HEIGHT_RATIO = 2
     PLOT_WIDTH_RATIO = 3
+
+    # 12-Color Palettes
+    COLOR_PALETTES = {
+        "Browns": ["#f6e0b5", "#e6c8a5", "#d6b095", "#c69885", "#b68075", "#a66865", "#965055", "#863845", "#762035", "#660825", "#560015", "#460005"],
+        "Blues": ["#e6f7ff", "#cceeff", "#b3e6ff", "#99ddff", "#80d4ff", "#66ccff", "#4dc3ff", "#33bbff", "#1ab2ff", "#00aaff", "#0099e6", "#0088cc"],
+        "Greens": ["#e6ffe6", "#ccffcc", "#b3ffb3", "#99ff99", "#80ff80", "#66ff66", "#4dff4d", "#33ff33", "#1aff1a", "#00ff00", "#00e600", "#00cc00"],
+        "Reds": ["#ffe6e6", "#ffcccc", "#ffb3b3", "#ff9999", "#ff8080", "#ff6666", "#ff4d4d", "#ff3333", "#ff1a1a", "#ff0000", "#e60000", "#cc0000"],
+        "Purples": ["#f2e6ff", "#e6ccff", "#d9b3ff", "#cc99ff", "#bf80ff", "#b366ff", "#a64dff", "#9933ff", "#8c1aff", "#8000ff", "#7300e6", "#6600cc"]
+    }
 
     def __init__(self):
         super().__init__()
         self.init_ui()
         self.setWindowTitle("Advanced Soil Profile Analyzer")
         self.setGeometry(100, 100, 1200, 800)
+        self.current_palette = "Browns"
 
     def init_ui(self):
         main_splitter = QSplitter(Qt.Horizontal)
@@ -124,6 +137,13 @@ class SoilProfileApp(QMainWindow):
         layout.addWidget(QLabel("Borehole Names:"))
         layout.addWidget(self.bh1_name)
         layout.addWidget(self.bh2_name)
+
+        # Color Palette Selector
+        self.palette_selector = QComboBox()
+        self.palette_selector.addItems(self.COLOR_PALETTES.keys())
+        self.palette_selector.currentTextChanged.connect(self.update_palette)
+        layout.addWidget(QLabel("Color Palette:"))
+        layout.addWidget(self.palette_selector)
 
         # Import Button
         btn_import = QPushButton("Import CSV")
@@ -145,7 +165,7 @@ class SoilProfileApp(QMainWindow):
         self.plot_width.setValue(10)
         self.plot_gap = QSpinBox()
         self.plot_gap.setRange(0, 50)
-        self.plot_gap.setValue(5)
+        self.plot_gap.setValue(30)
         
         control_layout.addWidget(QLabel("Plot Width (m):"), 0, 0)
         control_layout.addWidget(self.plot_width, 0, 1)
@@ -171,6 +191,10 @@ class SoilProfileApp(QMainWindow):
         main_splitter.setSizes([self.INPUT_WIDTH, self.width()-self.INPUT_WIDTH])
 
         self.setCentralWidget(main_splitter)
+
+    def update_palette(self, palette_name):
+        self.current_palette = palette_name
+        self.generate_plot()
 
     def import_csv(self):
         try:
@@ -208,20 +232,31 @@ class SoilProfileApp(QMainWindow):
             plot_width = self.plot_width.value()
             plot_gap = self.plot_gap.value()
 
-            gs = self.figure.add_gridspec(1, 2, 
-                width_ratios=[plot_width, plot_width], 
-                wspace=plot_gap/(plot_width*2 + plot_gap))
+            # Calculate width ratios based on real-world scale
+            total_width = plot_width * 2 + plot_gap
+            width_ratios = [plot_width, plot_width]
+            wspace = plot_gap / total_width
+
+            gs = self.figure.add_gridspec(1, 2, width_ratios=width_ratios, wspace=wspace)
             
             ax1 = self.figure.add_subplot(gs[0])
             ax2 = self.figure.add_subplot(gs[1])
 
-            self.plot_borehole(ax1, bh1_data, self.bh1_name.text())
-            self.plot_borehole(ax2, bh2_data, self.bh2_name.text())
+            # Get unique layer names and assign colors
+            all_layers = set([layer['layer'] for layer in bh1_data + bh2_data])
+            colors = self.get_layer_colors(all_layers)
+
+            self.plot_borehole(ax1, bh1_data, self.bh1_name.text(), colors)
+            self.plot_borehole(ax2, bh2_data, self.bh2_name.text(), colors)
 
             self.canvas.draw()
 
         except Exception as e:
             QMessageBox.critical(self, "Plot Error", str(e))
+
+    def get_layer_colors(self, layers):
+        palette = self.COLOR_PALETTES[self.current_palette]
+        return {layer: palette[i % len(palette)] for i, layer in enumerate(sorted(layers))}
 
     def get_borehole_data(self, table):
         data = []
@@ -242,7 +277,7 @@ class SoilProfileApp(QMainWindow):
                 
         return sorted(data, key=lambda x: x['start'], reverse=True)
 
-    def plot_borehole(self, ax, data, title):
+    def plot_borehole(self, ax, data, title, colors):
         if not data:
             return
 
@@ -254,7 +289,7 @@ class SoilProfileApp(QMainWindow):
         for layer in data:
             thickness = abs(layer['end'] - layer['start'])
             ax.bar(0, thickness, width=1, bottom=layer['end'], 
-                  color='skyblue', edgecolor='black')
+                  color=colors[layer['layer']], edgecolor='black')
             
             ax.text(0.5, (layer['start'] + layer['end']) / 2,
                    f"{layer['layer']}\nSPT: {layer['spt']}",

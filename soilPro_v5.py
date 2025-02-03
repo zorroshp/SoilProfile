@@ -120,7 +120,8 @@ class SoilProfileApp(QMainWindow):
       - Two tables for borehole data input.
       - Buttons to import CSV data and generate plots.
       - A matplotlib canvas for displaying soil profile plots.
-      - New GUI inputs for grid line interval and grid level label toggle.
+      - New GUI inputs for grid line interval, grid level label toggle,
+        and text size options.
     """
     COLOR_PALETTES = {
         "Geotech 12": [
@@ -144,7 +145,7 @@ class SoilProfileApp(QMainWindow):
     def init_ui(self):
         """Initialize and arrange all UI components."""
         main_splitter = QSplitter(Qt.Horizontal)
-        # Left Panel: Contains controls and data tables.
+        # Left Panel.
         left_panel = QWidget()
         layout = QVBoxLayout(left_panel)
         self.bh1_name = QLineEdit("Borehole-1")
@@ -166,8 +167,36 @@ class SoilProfileApp(QMainWindow):
         self.grid_interval_spinbox.setRange(0.1, 10.0)
         self.grid_interval_spinbox.setValue(1.0)
         self.grid_interval_spinbox.setSingleStep(0.1)
+        self.grid_interval_spinbox.setMaximumWidth(60)  # Reduced width.
         self.grid_label_checkbox = QCheckBox("Show Grid Level Labels")
         self.grid_label_checkbox.setChecked(True)
+        # New GUI options for text sizes arranged horizontally.
+        font_size_layout = QHBoxLayout()
+        font_size_layout.addWidget(QLabel("Main Heading Font Sizes:"))
+        font_size_layout.addWidget(QLabel("Detail"))
+        self.stack_bar_font_size_spinbox = QSpinBox()
+        self.stack_bar_font_size_spinbox.setRange(1, 50)
+        self.stack_bar_font_size_spinbox.setValue(9)
+        self.stack_bar_font_size_spinbox.setMaximumWidth(80)
+        font_size_layout.addWidget(self.stack_bar_font_size_spinbox)
+        font_size_layout.addWidget(QLabel("Grid"))
+        self.grid_label_font_size_spinbox = QSpinBox()
+        self.grid_label_font_size_spinbox.setRange(1, 50)
+        self.grid_label_font_size_spinbox.setValue(8)
+        self.grid_label_font_size_spinbox.setMaximumWidth(80)
+        font_size_layout.addWidget(self.grid_label_font_size_spinbox)
+        font_size_layout.addWidget(QLabel("Title"))
+        self.title_font_size_spinbox = QSpinBox()
+        self.title_font_size_spinbox.setRange(1, 50)
+        self.title_font_size_spinbox.setValue(12)
+        self.title_font_size_spinbox.setMaximumWidth(80)
+        font_size_layout.addWidget(self.title_font_size_spinbox)
+        font_size_layout.addWidget(QLabel("Level"))
+        self.borehole_level_font_size_spinbox = QSpinBox()
+        self.borehole_level_font_size_spinbox.setRange(1, 50)
+        self.borehole_level_font_size_spinbox.setValue(10)
+        self.borehole_level_font_size_spinbox.setMaximumWidth(80)
+        font_size_layout.addWidget(self.borehole_level_font_size_spinbox)
         
         layout.addWidget(QLabel("Borehole Names:"))
         layout.addWidget(self.bh1_name)
@@ -179,6 +208,7 @@ class SoilProfileApp(QMainWindow):
         layout.addWidget(grid_interval_label)
         layout.addWidget(self.grid_interval_spinbox)
         layout.addWidget(self.grid_label_checkbox)
+        layout.addLayout(font_size_layout)
         layout.addWidget(QLabel("Borehole 1 Data:"))
         self.bh1_table = EnhancedTable()
         layout.addWidget(self.bh1_table)
@@ -192,7 +222,7 @@ class SoilProfileApp(QMainWindow):
         controls.addWidget(self.plot_gap, 1, 1)
         layout.addLayout(controls)
         layout.addWidget(QPushButton("Generate Profile", clicked=self.generate_plot))
-        # Right Panel: Contains the matplotlib canvas and toolbar.
+        # Right Panel.
         self.figure = plt.figure(figsize=(10, 10))
         self.canvas = FigureCanvas(self.figure)
         toolbar = NavigationToolbar(self.canvas, self)
@@ -232,14 +262,16 @@ class SoilProfileApp(QMainWindow):
         """
         Generate the soil profile plots.
          - Compute a global y-range from all values for alignment.
-         - Each axis is set to this global range but displays only the discrete y-values from its own data.
+         - Each axis is set to this global range but displays only the discrete y-values from its own data,
+           formatted with 3 decimals.
          - Borehole 1 displays its y-values on the right; Borehole 2 on the left.
          - The stack bar (soil profile box) is drawn with full borders (unchanged).
          - If enabled, horizontal gridlines are drawn in the gap between subplots over the global range,
            with an interval from the GUI input.
-         - For each gridline, a label (with unit "mSHD") is placed at the horizontal midpoint of the gap,
+         - For each gridline, a label (with unit "mSHD" and 3 decimals) is placed at the horizontal midpoint of the gap,
            with a vertical offset corresponding to about 0.15 m in data coordinates.
          - The grid level labels are drawn only if enabled.
+         - The text sizes for the stack bar labels, grid labels, title, and borehole level tick labels are set via the GUI options.
         """
         try:
             self.figure.clear()
@@ -294,15 +326,19 @@ class SoilProfileApp(QMainWindow):
                         spine.set_visible(False)
                     ax.tick_params(axis='both', which='both', length=0)
             
-            # Set discrete y-ticks for each borehole from its own data.
+            # Set discrete y-ticks for each borehole from its own data, with 3 decimals.
             if bh1_data and ax1.get_visible():
                 discrete_bh1 = sorted(set([d['start'] for d in bh1_data] + [d['end'] for d in bh1_data]), reverse=True)
                 ax1.set_yticks(discrete_bh1)
-                ax1.yaxis.tick_right()  # Borehole 1: y-values on right.
+                ax1.yaxis.tick_right()
+                ax1.yaxis.set_major_formatter(plt.FormatStrFormatter('%.3f'))
+                ax1.tick_params(axis='y', labelsize=self.borehole_level_font_size_spinbox.value())
             if bh2_data and ax2.get_visible():
                 discrete_bh2 = sorted(set([d['start'] for d in bh2_data] + [d['end'] for d in bh2_data]), reverse=True)
                 ax2.set_yticks(discrete_bh2)
-                ax2.yaxis.tick_left()   # Borehole 2: y-values on left.
+                ax2.yaxis.tick_left()
+                ax2.yaxis.set_major_formatter(plt.FormatStrFormatter('%.3f'))
+                ax2.tick_params(axis='y', labelsize=self.borehole_level_font_size_spinbox.value())
             
             # Borehole plot borders and settings remain unchanged.
             for ax in (ax1, ax2):
@@ -317,7 +353,6 @@ class SoilProfileApp(QMainWindow):
                 gap_x0 = pos1.x1
                 gap_x1 = pos2.x0
                 grid_interval = self.grid_interval_spinbox.value()
-                # Generate grid values from global_y_max down to global_y_min.
                 grid_values = np.arange(global_y_max, global_y_min - grid_interval/2, -grid_interval)
                 grid_color = 'gray'
                 for y in grid_values:
@@ -328,13 +363,20 @@ class SoilProfileApp(QMainWindow):
                     self.figure.lines.append(line)
                     if self.grid_label_checkbox.isChecked():
                         x_center = (gap_x0 + gap_x1) / 2
-                        # Compute vertical offset corresponding to 0.15 m in data coordinates.
-                        data_offset = 0.05  # 0.15 m offset
-                        offset_fig = (ax1.transData.transform((0, y + data_offset))[1] - ax1.transData.transform((0, y))[1]) / self.figure.bbox.height
+                        data_offset = 0.05  # Data offset of about 0.05 m.
+                        offset_fig = (ax1.transData.transform((0, y + data_offset))[1] - 
+                                      ax1.transData.transform((0, y))[1]) / self.figure.bbox.height
                         label_y = fig_y + offset_fig
-                        label_text = f"{y:.1f} mSHD"
+                        label_text = f"{y:.3f} mSHD"
                         self.figure.text(x_center, label_y, label_text,
-                                         ha='center', va='bottom', color=grid_color, fontsize=8)
+                                         ha='center', va='bottom', color=grid_color,
+                                         fontsize=self.grid_label_font_size_spinbox.value())
+            
+            # Set the title font size for each borehole.
+            if ax1.get_visible():
+                ax1.title.set_fontsize(self.title_font_size_spinbox.value())
+            if ax2.get_visible():
+                ax2.title.set_fontsize(self.title_font_size_spinbox.value())
             
             self.canvas.draw()
         except Exception as e:
@@ -389,13 +431,14 @@ class SoilProfileApp(QMainWindow):
            drawn with full borders on all sides.
          - Draws each soil layer as a bar with its own black border.
          - Places the label (with optional SPT info) outside the bar.
-         - (Borehole border settings remain exactly as in previous code.)
+         - Borehole border settings remain exactly as in previous code.
         """
         if not data:
             ax.set_visible(False)
             return
         
         ax.set_title(borehole_name, pad=20)
+        ax.title.set_fontsize(self.title_font_size_spinbox.value())
         ax.set_xticks([])
         ax.set_aspect('equal', adjustable='box')
         ax.set_xlim(-plot_width / 2, plot_width / 2)
@@ -434,7 +477,8 @@ class SoilProfileApp(QMainWindow):
                 spt_display = f"SPT: {layer['spt']}"
             label_text = layer['layer'] if spt_display == "" else f"{layer['layer']}\n{spt_display}"
             ax.text(text_x, bottom_val + thickness / 2,
-                    label_text, ha=ha, va='center', fontsize=9, zorder=3)
+                    label_text, ha=ha, va='center',
+                    fontsize=self.stack_bar_font_size_spinbox.value(), zorder=3)
 
 
 if __name__ == "__main__":

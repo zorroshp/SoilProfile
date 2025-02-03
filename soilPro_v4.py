@@ -108,7 +108,7 @@ class SoilProfileApp(QMainWindow):
     PLOT_HEIGHT_RATIO = 2
     PLOT_WIDTH_RATIO = 3
 
-    # 12-Color Palettes
+    # Color Palettes
     COLOR_PALETTES = {
         "Browns": ["#f6e0b5", "#e6c8a5", "#d6b095", "#c69885", "#b68075", "#a66865", "#965055", "#863845", "#762035", "#660825", "#560015", "#460005"],
         "Blues": ["#e6f7ff", "#cceeff", "#b3e6ff", "#99ddff", "#80d4ff", "#66ccff", "#4dc3ff", "#33bbff", "#1ab2ff", "#00aaff", "#0099e6", "#0088cc"],
@@ -162,7 +162,7 @@ class SoilProfileApp(QMainWindow):
         control_layout = QGridLayout()
         self.plot_width = QSpinBox()
         self.plot_width.setRange(1, 50)
-        self.plot_width.setValue(10)
+        self.plot_width.setValue(2)
         self.plot_gap = QSpinBox()
         self.plot_gap.setRange(0, 50)
         self.plot_gap.setValue(30)

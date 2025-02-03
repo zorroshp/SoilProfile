@@ -5,10 +5,10 @@ from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QVBoxLayout, QGridLayout, QSplitter,
     QWidget, QLabel, QPushButton, QTableWidget, QTableWidgetItem,
     QSpinBox, QHBoxLayout, QHeaderView, QMenu, QMessageBox, QLineEdit,
-    QFileDialog, QComboBox, QCheckBox, QDoubleSpinBox
+    QFileDialog, QComboBox, QCheckBox, QDoubleSpinBox, QGroupBox, QFrame
 )
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QClipboard
+from PyQt5.QtGui import QClipboard, QIcon
 from matplotlib.backends.backend_qt5agg import (
     FigureCanvasQTAgg as FigureCanvas,
     NavigationToolbar2QT as NavigationToolbar
@@ -18,8 +18,8 @@ import matplotlib.pyplot as plt
 
 def convert_to_lighter(hex_color, factor=0.5):
     """
-    Convert a hex color (e.g. '#RRGGBB') to a lighter version.
-    The lighter version is computed by blending the color with white using the given factor.
+    Convert a hex color (e.g. '#RRGGBB') to a lighter version by blending with white.
+    The blending factor determines how much lighter the color should be.
     """
     r = int(hex_color[1:3], 16)
     g = int(hex_color[3:5], 16)
@@ -36,18 +36,20 @@ class EnhancedTable(QTableWidget):
       - Predefined headers and column widths.
       - Right-click context menu for copying, pasting, and clearing cells.
     """
-    HEADER_HEIGHT = 60
-    COLUMN_WIDTHS = [120, 100, 100, 80]
-    COLUMN_PADDING = 15
+    HEADER_HEIGHT = 40
+    COLUMN_WIDTHS = [120, 80, 80, 80]
+    COLUMN_PADDING = 10
 
     def __init__(self, parent=None):
+        # Initialize with 15 rows and 4 columns.
         super().__init__(15, 4)
-        self.setup_table()
-        self.clipboard = QApplication.clipboard()
+        self.setup_table()  # Set up headers and column widths.
+        self.clipboard = QApplication.clipboard()  # Access system clipboard.
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.context_menu)
 
     def setup_table(self):
+        """Set up the table with headers and predefined column widths."""
         headers = ["Layer\nName", "Start\nLevel (m)", "End\nLevel (m)", "SPT\nValue"]
         self.setHorizontalHeaderLabels(headers)
         header = self.horizontalHeader()
@@ -59,11 +61,19 @@ class EnhancedTable(QTableWidget):
             QHeaderView::section {
                 border: 1px solid #ddd;
                 padding: 4px;
-                font-weight: bold;
+                font-weight: normal;
             }
         """)
+        self.verticalHeader().setDefaultSectionSize(10)  # Change 30 to your desired row height in pixels.
+
 
     def context_menu(self, position):
+        """
+        Display a custom context menu with options:
+          - Copy: Copies selected cells to clipboard.
+          - Paste: Pastes clipboard content into selected cells.
+          - Clear: Clears the text in selected cells.
+        """
         menu = QMenu()
         copy_action = menu.addAction("Copy")
         paste_action = menu.addAction("Paste")
@@ -77,6 +87,7 @@ class EnhancedTable(QTableWidget):
             self.clear_selection()
 
     def copy_selection(self):
+        """Copy the selected cell(s) content to the clipboard."""
         selected = self.selectedRanges()
         if not selected:
             return
@@ -90,6 +101,7 @@ class EnhancedTable(QTableWidget):
         self.clipboard.setText(text.strip())
 
     def paste_selection(self):
+        """Paste clipboard text into the table starting at the current cell."""
         text = self.clipboard.text()
         rows = text.split("\n")
         current_row = self.currentRow()
@@ -103,10 +115,12 @@ class EnhancedTable(QTableWidget):
                     self.setItem(row_pos, col_pos, QTableWidgetItem(cell.strip()))
 
     def clear_selection(self):
+        """Clear the text of all selected cells."""
         for item in self.selectedItems():
             item.setText("")
 
     def keyPressEvent(self, event):
+        """Override Delete key press to clear selection."""
         if event.key() == Qt.Key_Delete:
             self.clear_selection()
         else:
@@ -116,13 +130,8 @@ class EnhancedTable(QTableWidget):
 class SoilProfileApp(QMainWindow):
     """
     Main application window for the Geotechnical Profile Analyzer.
-    Contains:
-      - Input fields for borehole names, a color palette drop‐down (with halftone option),
-        and gridline controls.
-      - Two tables for borehole data input.
-      - Buttons to import CSV data and generate plots.
-      - A matplotlib canvas for displaying soil profile plots.
-      - New GUI inputs for grid line interval, grid level label toggle, and text size options.
+    The functionality remains unchanged, but the GUI layout has been reorganized
+    into modern, user-friendly groupings. The window title is set to "SoilPro" with an icon.
     """
     COLOR_PALETTES = {
         "Geotech 12": [
@@ -187,7 +196,7 @@ class SoilProfileApp(QMainWindow):
         ],
         "Disturbed": [
             '#FDEBD0', '#FAD7A0', '#F8C471', '#F5B041', '#F39C12',
-            '#E67E22', '#D35400', '#BA4A00', '#A04000', '#873600',
+            '#E67A22', '#D35400', '#BA4A00', '#A04000', '#873600',
             '#6E2C00', '#562200'
         ],
         "Urban Slate": [
@@ -212,100 +221,191 @@ class SoilProfileApp(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.init_ui()  # Set up the user interface.
-        self.setWindowTitle("Geotechnical Profile Analyzer")
-        self.setGeometry(100, 100, 1400, 900)
+        self.init_ui()
+        self.setWindowTitle("SoilPro")
+        self.setWindowIcon(QIcon("soilpro_icon.png"))
+        self.setGeometry(50, 50, 1600, 950)
+
 
     def init_ui(self):
-        """Initialize and arrange all UI components."""
+        """Set up a modern, user-friendly GUI layout."""
         main_splitter = QSplitter(Qt.Horizontal)
-        # Left Panel.
+        
+        # Left Panel Setup
         left_panel = QWidget()
-        layout = QVBoxLayout(left_panel)
+        left_panel.setMinimumWidth(480)  # Minimum width of 300 pixels.
+        left_panel.setMaximumWidth(485)  # Maximum width of 500 pixels.
+
+        left_layout = QVBoxLayout(left_panel)
+        
+        # Borehole Information Section
+        borehole_group = QGroupBox("Borehole Information")
+        borehole_group.setStyleSheet("QGroupBox::title { font: bold 8pt; }")
+        font = borehole_group.font()
+        font.setBold(True)
+        borehole_group.setFont(font)
+        borehole_layout = QVBoxLayout()
         self.bh1_name = QLineEdit("Borehole-1")
         self.bh2_name = QLineEdit("Borehole-2")
-        layout.addWidget(QLabel("Borehole Names:"))
-        layout.addWidget(self.bh1_name)
-        layout.addWidget(self.bh2_name)
-        layout.addWidget(QPushButton("Import CSV", clicked=self.import_csv))
-        # Now add the palette drop down and halftone option after Import CSV.
+        borehole_layout.addWidget(QLabel("Borehole Names:"))
+        borehole_layout.addWidget(self.bh1_name)
+        borehole_layout.addWidget(self.bh2_name)
+        borehole_group.setLayout(borehole_layout)
+        left_layout.addWidget(borehole_group)
+        
+        # Import CSV Button
+        left_layout.addWidget(QPushButton("Import CSV", clicked=self.import_csv))
+        
+        # Plot Settings Section
+        plot_settings_group = QGroupBox("Plot Settings")
+        plot_settings_group.setStyleSheet("QGroupBox::title { font: bold 8pt; }")
+        font = plot_settings_group.font()
+        font.setBold(True)
+        plot_settings_group.setFont(font)
+        plot_settings_layout = QVBoxLayout()
+        
+        # Section: Color Palette
+        cp_group = QGroupBox("Color Palette")
+        cp_layout = QHBoxLayout()
+        cp_layout.setSpacing(10)  # Adjust 10 to your desired pixel gap
         self.palette_selector = QComboBox()
         self.palette_selector.addItems(self.COLOR_PALETTES.keys())
         self.halftone_checkbox = QCheckBox("Halftone")
         self.halftone_checkbox.setChecked(False)
-        palette_layout = QHBoxLayout()
-        palette_layout.addWidget(QLabel("Color Palette:"))
-        palette_layout.addWidget(self.palette_selector)
-        palette_layout.addWidget(self.halftone_checkbox)
-        layout.addLayout(palette_layout)
-        self.plot_width = QSpinBox()
-        self.plot_width.setRange(1, 100)
-        self.plot_width.setValue(2)
-        self.plot_gap = QSpinBox()
-        self.plot_gap.setRange(0, 100)
-        self.plot_gap.setValue(15)
-        self.grid_checkbox = QCheckBox("Show Horizontal Gridlines")
+        cp_layout.addWidget(QLabel("Select Palette:"))
+        cp_layout.addWidget(self.palette_selector)
+        cp_layout.addWidget(self.halftone_checkbox)
+        cp_group.setLayout(cp_layout)
+        plot_settings_layout.addWidget(cp_group)
+        
+        # Add horizontal line
+        line1 = QFrame()
+        line1.setFrameShape(QFrame.HLine)
+        line1.setFrameShadow(QFrame.Sunken)
+        plot_settings_layout.addWidget(line1)
+        
+        # Section: Grid Settings
+        grid_group = QGroupBox("Grid Settings")
+        grid_group.setStyleSheet("QGroupBox::title { font: bold 8pt; }")
+        font = grid_group.font()
+        font.setBold(True)
+        grid_group.setFont(font)
+        grid_layout = QHBoxLayout()
+        self.grid_checkbox = QCheckBox("Level Grids")
         self.grid_checkbox.setChecked(True)
-        grid_interval_label = QLabel("Grid Interval (m):")
+        grid_layout.addWidget(self.grid_checkbox)
+        grid_layout.addWidget(QLabel("Grid Interval (m):"))
         self.grid_interval_spinbox = QDoubleSpinBox()
         self.grid_interval_spinbox.setRange(0.1, 10.0)
         self.grid_interval_spinbox.setValue(1.0)
         self.grid_interval_spinbox.setSingleStep(0.1)
         self.grid_interval_spinbox.setMaximumWidth(60)
-        self.grid_label_checkbox = QCheckBox("Show Grid Level Labels")
+        grid_layout.addWidget(self.grid_interval_spinbox)
+        self.grid_label_checkbox = QCheckBox("Grid Labels")
         self.grid_label_checkbox.setChecked(True)
-        font_size_layout = QHBoxLayout()
-        font_size_layout.addWidget(QLabel("Main Heading Font Sizes:"))
-        font_size_layout.addWidget(QLabel("Detail"))
+        grid_layout.addWidget(self.grid_label_checkbox)
+        grid_group.setLayout(grid_layout)
+        #grid_group.setContentsMargins(5, 5, 5, 5)
+        plot_settings_layout.addWidget(grid_group)
+
+        
+        # Add horizontal line
+        line2 = QFrame()
+        line2.setFrameShape(QFrame.HLine)
+        line2.setFrameShadow(QFrame.Sunken)
+        plot_settings_layout.addWidget(line2)
+        
+        # Section: Font Sizes
+        font_group = QGroupBox("Font Sizes")
+        font_group.setStyleSheet("QGroupBox::title { font: bold 8pt; }")
+        font = font_group.font()
+        font.setBold(True)
+        font_group.setFont(font)
+        font_layout = QHBoxLayout()
+        font_layout.addWidget(QLabel("Detail:"))
         self.stack_bar_font_size_spinbox = QSpinBox()
         self.stack_bar_font_size_spinbox.setRange(1, 50)
         self.stack_bar_font_size_spinbox.setValue(9)
         self.stack_bar_font_size_spinbox.setMaximumWidth(80)
-        font_size_layout.addWidget(self.stack_bar_font_size_spinbox)
-        font_size_layout.addWidget(QLabel("Grid"))
+        font_layout.addWidget(self.stack_bar_font_size_spinbox)
+        font_layout.addWidget(QLabel("Grid:"))
         self.grid_label_font_size_spinbox = QSpinBox()
         self.grid_label_font_size_spinbox.setRange(1, 50)
         self.grid_label_font_size_spinbox.setValue(8)
         self.grid_label_font_size_spinbox.setMaximumWidth(80)
-        font_size_layout.addWidget(self.grid_label_font_size_spinbox)
-        font_size_layout.addWidget(QLabel("Title"))
+        font_layout.addWidget(self.grid_label_font_size_spinbox)
+        font_layout.addWidget(QLabel("Title:"))
         self.title_font_size_spinbox = QSpinBox()
         self.title_font_size_spinbox.setRange(1, 50)
         self.title_font_size_spinbox.setValue(12)
         self.title_font_size_spinbox.setMaximumWidth(80)
-        font_size_layout.addWidget(self.title_font_size_spinbox)
-        font_size_layout.addWidget(QLabel("Level"))
+        font_layout.addWidget(self.title_font_size_spinbox)
+        font_layout.addWidget(QLabel("Level:"))
         self.borehole_level_font_size_spinbox = QSpinBox()
         self.borehole_level_font_size_spinbox.setRange(1, 50)
         self.borehole_level_font_size_spinbox.setValue(10)
         self.borehole_level_font_size_spinbox.setMaximumWidth(80)
-        font_size_layout.addWidget(self.borehole_level_font_size_spinbox)
-        layout.addWidget(self.grid_checkbox)
-        layout.addWidget(grid_interval_label)
-        layout.addWidget(self.grid_interval_spinbox)
-        layout.addWidget(self.grid_label_checkbox)
-        layout.addLayout(font_size_layout)
-        layout.addWidget(QLabel("Borehole 1 Data:"))
+        font_layout.addWidget(self.borehole_level_font_size_spinbox)
+        font_group.setLayout(font_layout)
+        plot_settings_layout.addWidget(font_group)
+        
+        # Add horizontal line
+        line3 = QFrame()
+        line3.setFrameShape(QFrame.HLine)
+        line3.setFrameShadow(QFrame.Sunken)
+        plot_settings_layout.addWidget(line3)
+        
+        # Section: Profile Dimensions
+        dim_group = QGroupBox("Profile Dimensions")
+        dim_group.setStyleSheet("QGroupBox::title { font: bold 8pt; }")
+        font = dim_group.font()
+        font.setBold(True)
+        dim_group.setFont(font)
+        dim_layout = QHBoxLayout()
+        dim_layout.addWidget(QLabel("Profile Width (m):"))
+        self.plot_width = QSpinBox()
+        self.plot_width.setRange(1, 100)
+        self.plot_width.setValue(2)
+        dim_layout.addWidget(self.plot_width)
+        dim_layout.addWidget(QLabel("Borehole Spacing (m):"))
+        self.plot_gap = QSpinBox()
+        self.plot_gap.setRange(0, 100)
+        self.plot_gap.setValue(15)
+        dim_layout.addWidget(self.plot_gap)
+        dim_group.setLayout(dim_layout)
+        plot_settings_layout.addWidget(dim_group)
+        
+        plot_settings_group.setLayout(plot_settings_layout)
+        left_layout.addWidget(plot_settings_group)
+        
+        # Borehole Data Section (both boreholes shown vertically)
+        data_group = QGroupBox("Borehole Data")
+        data_group.setStyleSheet("QGroupBox::title { font: bold 8pt; }")
+        font = data_group.font()
+        font.setBold(True)
+        data_group.setFont(font)
+        data_layout = QVBoxLayout()
+        data_layout.addWidget(QLabel("Borehole 1 Data:"))
         self.bh1_table = EnhancedTable()
-        layout.addWidget(self.bh1_table)
-        layout.addWidget(QLabel("Borehole 2 Data:"))
+        data_layout.addWidget(self.bh1_table)
+        data_layout.addWidget(QLabel("Borehole 2 Data:"))
         self.bh2_table = EnhancedTable()
-        layout.addWidget(self.bh2_table)
-        controls = QGridLayout()
-        controls.addWidget(QLabel("Profile Width (m):"), 0, 0)
-        controls.addWidget(self.plot_width, 0, 1)
-        controls.addWidget(QLabel("Borehole Spacing (m):"), 1, 0)
-        controls.addWidget(self.plot_gap, 1, 1)
-        layout.addLayout(controls)
-        layout.addWidget(QPushButton("Generate Profile", clicked=self.generate_plot))
-        # Right Panel.
+        data_layout.addWidget(self.bh2_table)
+        data_group.setLayout(data_layout)
+        left_layout.addWidget(data_group)
+        
+        # Generate Profile Button
+        left_layout.addWidget(QPushButton("Generate Profile", clicked=self.generate_plot))
+        
+        # Right Panel: Plot Area remains unchanged.
+        right_panel = QWidget()
+        right_layout = QVBoxLayout(right_panel)
         self.figure = plt.figure(figsize=(10, 10))
         self.canvas = FigureCanvas(self.figure)
         toolbar = NavigationToolbar(self.canvas, self)
-        right_panel = QWidget()
-        right_layout = QVBoxLayout(right_panel)
         right_layout.addWidget(toolbar)
         right_layout.addWidget(self.canvas)
+        
         main_splitter.addWidget(left_panel)
         main_splitter.addWidget(right_panel)
         main_splitter.setSizes([400, 1000])
@@ -398,13 +498,13 @@ class SoilProfileApp(QMainWindow):
                 ax2.yaxis.set_major_formatter(plt.FormatStrFormatter('%.3f'))
                 ax2.tick_params(axis='y', labelsize=self.borehole_level_font_size_spinbox.value())
             
-            # Borehole plot borders and settings remain unchanged.
+            # Borehole plot borders remain unchanged.
             for ax in (ax1, ax2):
                 if ax.get_visible():
                     ax.xaxis.grid(False)
                     ax.yaxis.grid(False)
             
-            # Draw horizontal grid lines in the gap between subplots if enabled.
+            # Draw horizontal grid lines if enabled.
             if self.grid_checkbox.isChecked():
                 pos1 = ax1.get_position()
                 pos2 = ax2.get_position()
@@ -421,8 +521,8 @@ class SoilProfileApp(QMainWindow):
                     self.figure.lines.append(line)
                     if self.grid_label_checkbox.isChecked():
                         x_center = (gap_x0 + gap_x1) / 2
-                        data_offset = 0.05  # Data offset of about 0.05 m.
-                        offset_fig = (ax1.transData.transform((0, y + data_offset))[1] - 
+                        data_offset = 0.05
+                        offset_fig = (ax1.transData.transform((0, y + data_offset))[1] -
                                       ax1.transData.transform((0, y))[1]) / self.figure.bbox.height
                         label_y = fig_y + offset_fig
                         label_text = f"{y:.3f} mSHD"
@@ -430,7 +530,6 @@ class SoilProfileApp(QMainWindow):
                                          ha='center', va='bottom', color=grid_color,
                                          fontsize=self.grid_label_font_size_spinbox.value())
             
-            # Set the title font size for each borehole.
             if ax1.get_visible():
                 ax1.title.set_fontsize(self.title_font_size_spinbox.value())
             if ax2.get_visible():
@@ -504,11 +603,9 @@ class SoilProfileApp(QMainWindow):
         ax.set_aspect('equal', adjustable='box')
         ax.set_xlim(-plot_width / 2, plot_width / 2)
         
-        # Compute local data range for this borehole.
         local_box_top = max(d['start'] for d in data)
         local_box_bottom = min(d['end'] for d in data)
         
-        # Add a background patch covering only the local data range with a full border.
         x_left, x_right = ax.get_xlim()
         rect = plt.Rectangle((x_left, local_box_bottom),
                              x_right - x_left,
@@ -516,7 +613,7 @@ class SoilProfileApp(QMainWindow):
                              fill=False, edgecolor='black', linewidth=1, zorder=1, clip_on=False)
         ax.add_patch(rect)
         
-        margin = 0.2 * plot_width  # Margin for label placement.
+        margin = 0.2 * plot_width
         for layer in data:
             thickness = abs(layer['start'] - layer['end'])
             bottom_val = min(layer['start'], layer['end'])

@@ -1,10 +1,11 @@
 import sys
 import csv
+import numpy as np
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QVBoxLayout, QGridLayout, QSplitter,
     QWidget, QLabel, QPushButton, QTableWidget, QTableWidgetItem,
     QSpinBox, QHBoxLayout, QHeaderView, QMenu, QMessageBox, QLineEdit,
-    QFileDialog, QComboBox, QCheckBox
+    QFileDialog, QComboBox, QCheckBox, QDoubleSpinBox
 )
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QClipboard
@@ -115,10 +116,11 @@ class SoilProfileApp(QMainWindow):
     """
     Main application window for the Geotechnical Profile Analyzer.
     Contains:
-      - Input fields for borehole names, color palette, and gridlines toggle.
+      - Input fields for borehole names, color palette, and gridline controls.
       - Two tables for borehole data input.
       - Buttons to import CSV data and generate plots.
       - A matplotlib canvas for displaying soil profile plots.
+      - New GUI inputs for grid line interval and grid level label toggle.
     """
     COLOR_PALETTES = {
         "Geotech 12": [
@@ -155,8 +157,18 @@ class SoilProfileApp(QMainWindow):
         self.plot_gap = QSpinBox()
         self.plot_gap.setRange(0, 100)
         self.plot_gap.setValue(15)
+        # Checkbox to toggle horizontal gridlines.
         self.grid_checkbox = QCheckBox("Show Horizontal Gridlines")
         self.grid_checkbox.setChecked(True)
+        # New inputs for gridline controls.
+        grid_interval_label = QLabel("Grid Interval (m):")
+        self.grid_interval_spinbox = QDoubleSpinBox()
+        self.grid_interval_spinbox.setRange(0.1, 10.0)
+        self.grid_interval_spinbox.setValue(1.0)
+        self.grid_interval_spinbox.setSingleStep(0.1)
+        self.grid_label_checkbox = QCheckBox("Show Grid Level Labels")
+        self.grid_label_checkbox.setChecked(True)
+        
         layout.addWidget(QLabel("Borehole Names:"))
         layout.addWidget(self.bh1_name)
         layout.addWidget(self.bh2_name)
@@ -164,6 +176,9 @@ class SoilProfileApp(QMainWindow):
         layout.addWidget(self.palette_selector)
         layout.addWidget(QPushButton("Import CSV", clicked=self.import_csv))
         layout.addWidget(self.grid_checkbox)
+        layout.addWidget(grid_interval_label)
+        layout.addWidget(self.grid_interval_spinbox)
+        layout.addWidget(self.grid_label_checkbox)
         layout.addWidget(QLabel("Borehole 1 Data:"))
         self.bh1_table = EnhancedTable()
         layout.addWidget(self.bh1_table)
@@ -217,11 +232,14 @@ class SoilProfileApp(QMainWindow):
         """
         Generate the soil profile plots.
          - Compute a global y-range from all values for alignment.
-         - Set each axis to this global range.
-         - Remove all borders and ticks except for the discrete y values from each borehole's data.
-         - For each borehole, compute its own discrete y-values and set them on the corresponding axis.
-         - The axis for Borehole 1 shows y-values on the right; for Borehole 2 on the left.
-         - The stack bar (soil profile box) is drawn with a full border.
+         - Each axis is set to this global range but displays only the discrete y-values from its own data.
+         - Borehole 1 displays its y-values on the right; Borehole 2 on the left.
+         - The stack bar (soil profile box) is drawn with full borders (unchanged).
+         - If enabled, horizontal gridlines are drawn in the gap between subplots over the global range,
+           with an interval from the GUI input.
+         - For each gridline, a label (with unit "mSHD") is placed at the horizontal midpoint of the gap,
+           with a vertical offset corresponding to about 0.15 m in data coordinates.
+         - The grid level labels are drawn only if enabled.
         """
         try:
             self.figure.clear()
@@ -235,7 +253,7 @@ class SoilProfileApp(QMainWindow):
             ax1 = self.figure.add_subplot(gs[0])
             ax2 = self.figure.add_subplot(gs[1])
             
-            # Compute global y-range from both boreholes
+            # Compute global y-range from both boreholes.
             all_values = []
             for d in bh1_data + bh2_data:
                 all_values.append(d['start'])
@@ -257,7 +275,7 @@ class SoilProfileApp(QMainWindow):
             else:
                 colors = {}
 
-            # Plot profiles for each borehole if data exists.
+            # Plot each borehole's profile.
             if bh1_data:
                 self.plot_profile(ax1, bh1_data, self.bh1_name.text(), colors, plot_width, label_side="left")
             else:
@@ -268,34 +286,55 @@ class SoilProfileApp(QMainWindow):
                 ax2.set_visible(False)
             
             # Set both axes to the global y-range.
-            if ax1.get_visible():
-                ax1.set_ylim(global_y_min, global_y_max)
-            if ax2.get_visible():
-                ax2.set_ylim(global_y_min, global_y_max)
-            
-            # Remove all axis borders and ticks.
             for ax in (ax1, ax2):
                 if ax.get_visible():
+                    ax.set_ylim(global_y_min, global_y_max)
                     ax.patch.set_visible(False)
                     for spine in ax.spines.values():
                         spine.set_visible(False)
                     ax.tick_params(axis='both', which='both', length=0)
             
-            # Set discrete y-ticks from each borehole's own data.
+            # Set discrete y-ticks for each borehole from its own data.
             if bh1_data and ax1.get_visible():
                 discrete_bh1 = sorted(set([d['start'] for d in bh1_data] + [d['end'] for d in bh1_data]), reverse=True)
                 ax1.set_yticks(discrete_bh1)
-                ax1.yaxis.tick_right()  # Show Borehole 1 y-values on the right.
+                ax1.yaxis.tick_right()  # Borehole 1: y-values on right.
             if bh2_data and ax2.get_visible():
                 discrete_bh2 = sorted(set([d['start'] for d in bh2_data] + [d['end'] for d in bh2_data]), reverse=True)
                 ax2.set_yticks(discrete_bh2)
-                ax2.yaxis.tick_left()   # Show Borehole 2 y-values on the left.
+                ax2.yaxis.tick_left()   # Borehole 2: y-values on left.
             
-            # Remove grid lines.
+            # Borehole plot borders and settings remain unchanged.
             for ax in (ax1, ax2):
                 if ax.get_visible():
                     ax.xaxis.grid(False)
                     ax.yaxis.grid(False)
+            
+            # Draw horizontal grid lines in the gap between subplots if enabled.
+            if self.grid_checkbox.isChecked():
+                pos1 = ax1.get_position()
+                pos2 = ax2.get_position()
+                gap_x0 = pos1.x1
+                gap_x1 = pos2.x0
+                grid_interval = self.grid_interval_spinbox.value()
+                # Generate grid values from global_y_max down to global_y_min.
+                grid_values = np.arange(global_y_max, global_y_min - grid_interval/2, -grid_interval)
+                grid_color = 'gray'
+                for y in grid_values:
+                    fig_y = ax1.transData.transform((0, y))[1] / self.figure.bbox.height
+                    line = plt.Line2D([gap_x0, gap_x1], [fig_y, fig_y],
+                                      transform=self.figure.transFigure,
+                                      color=grid_color, linestyle=(0, (3, 3)), linewidth=0.5)
+                    self.figure.lines.append(line)
+                    if self.grid_label_checkbox.isChecked():
+                        x_center = (gap_x0 + gap_x1) / 2
+                        # Compute vertical offset corresponding to 0.15 m in data coordinates.
+                        data_offset = 0.05  # 0.15 m offset
+                        offset_fig = (ax1.transData.transform((0, y + data_offset))[1] - ax1.transData.transform((0, y))[1]) / self.figure.bbox.height
+                        label_y = fig_y + offset_fig
+                        label_text = f"{y:.1f} mSHD"
+                        self.figure.text(x_center, label_y, label_text,
+                                         ha='center', va='bottom', color=grid_color, fontsize=8)
             
             self.canvas.draw()
         except Exception as e:
@@ -346,10 +385,11 @@ class SoilProfileApp(QMainWindow):
     def plot_profile(self, ax, data, borehole_name, colors, plot_width, label_side="left"):
         """
         Plot the soil profile on the provided axis.
-         - Adds a custom background patch covering only the borehole's local data range.
-         - Draws each soil layer as a bar with a black border.
+         - Adds a custom background patch (the stack bar box) covering only the borehole's local data range,
+           drawn with full borders on all sides.
+         - Draws each soil layer as a bar with its own black border.
          - Places the label (with optional SPT info) outside the bar.
-         - The background patch (stack bar box) is drawn with a full border on all sides.
+         - (Borehole border settings remain exactly as in previous code.)
         """
         if not data:
             ax.set_visible(False)
@@ -364,16 +404,14 @@ class SoilProfileApp(QMainWindow):
         local_box_top = max(d['start'] for d in data)
         local_box_bottom = min(d['end'] for d in data)
         
-        # Add a custom background patch covering only the local data range.
+        # Add a background patch covering only the local data range with a full border.
         x_left, x_right = ax.get_xlim()
-        # Use fill=False and clip_on=False to ensure all borders are drawn.
         rect = plt.Rectangle((x_left, local_box_bottom),
                              x_right - x_left,
                              local_box_top - local_box_bottom,
                              fill=False, edgecolor='black', linewidth=1, zorder=1, clip_on=False)
         ax.add_patch(rect)
         
-        # Draw each soil layer as a bar.
         margin = 0.2 * plot_width  # Margin for label placement.
         for layer in data:
             thickness = abs(layer['start'] - layer['end'])
@@ -384,14 +422,12 @@ class SoilProfileApp(QMainWindow):
                    edgecolor='black',
                    linewidth=0.5,
                    zorder=2)
-            # Determine label position.
             if label_side == "left":
                 ha = "right"
                 text_x = -plot_width / 2 - margin
             else:
                 ha = "left"
                 text_x = plot_width / 2 + margin
-            # Build label text.
             if layer['spt'] is None or layer['spt'] == "":
                 spt_display = ""
             else:

@@ -16,6 +16,20 @@ from matplotlib.backends.backend_qt5agg import (
 import matplotlib.pyplot as plt
 
 
+def convert_to_lighter(hex_color, factor=0.5):
+    """
+    Convert a hex color (e.g. '#RRGGBB') to a lighter version.
+    The lighter version is computed by blending the color with white using the given factor.
+    """
+    r = int(hex_color[1:3], 16)
+    g = int(hex_color[3:5], 16)
+    b = int(hex_color[5:7], 16)
+    lr = int(r + (255 - r) * factor)
+    lg = int(g + (255 - g) * factor)
+    lb = int(b + (255 - b) * factor)
+    return f"#{lr:02x}{lg:02x}{lb:02x}"
+
+
 class EnhancedTable(QTableWidget):
     """
     Custom QTableWidget with enhanced features:
@@ -27,21 +41,18 @@ class EnhancedTable(QTableWidget):
     COLUMN_PADDING = 15
 
     def __init__(self, parent=None):
-        # Initialize with 15 rows and 4 columns.
         super().__init__(15, 4)
-        self.setup_table()  # Set up headers and column widths.
-        self.clipboard = QApplication.clipboard()  # Access system clipboard.
+        self.setup_table()
+        self.clipboard = QApplication.clipboard()
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.context_menu)
 
     def setup_table(self):
-        """Set up the table with headers and predefined column widths."""
         headers = ["Layer\nName", "Start\nLevel (m)", "End\nLevel (m)", "SPT\nValue"]
         self.setHorizontalHeaderLabels(headers)
         header = self.horizontalHeader()
         header.setFixedHeight(self.HEADER_HEIGHT)
         header.setDefaultAlignment(Qt.AlignCenter)
-        # Set each column width (with extra padding).
         for col, width in enumerate(self.COLUMN_WIDTHS):
             self.setColumnWidth(col, width + self.COLUMN_PADDING)
         header.setStyleSheet("""
@@ -53,12 +64,6 @@ class EnhancedTable(QTableWidget):
         """)
 
     def context_menu(self, position):
-        """
-        Display a custom context menu with options:
-          - Copy: Copies selected cells to clipboard.
-          - Paste: Pastes clipboard content into selected cells.
-          - Clear: Clears the text in selected cells.
-        """
         menu = QMenu()
         copy_action = menu.addAction("Copy")
         paste_action = menu.addAction("Paste")
@@ -72,7 +77,6 @@ class EnhancedTable(QTableWidget):
             self.clear_selection()
 
     def copy_selection(self):
-        """Copy the selected cell(s) content to the clipboard."""
         selected = self.selectedRanges()
         if not selected:
             return
@@ -86,7 +90,6 @@ class EnhancedTable(QTableWidget):
         self.clipboard.setText(text.strip())
 
     def paste_selection(self):
-        """Paste clipboard text into the table starting at the current cell."""
         text = self.clipboard.text()
         rows = text.split("\n")
         current_row = self.currentRow()
@@ -100,12 +103,10 @@ class EnhancedTable(QTableWidget):
                     self.setItem(row_pos, col_pos, QTableWidgetItem(cell.strip()))
 
     def clear_selection(self):
-        """Clear the text of all selected cells."""
         for item in self.selectedItems():
             item.setText("")
 
     def keyPressEvent(self, event):
-        """Override Delete key press to clear selection."""
         if event.key() == Qt.Key_Delete:
             self.clear_selection()
         else:
@@ -116,12 +117,12 @@ class SoilProfileApp(QMainWindow):
     """
     Main application window for the Geotechnical Profile Analyzer.
     Contains:
-      - Input fields for borehole names, color palette, and gridline controls.
+      - Input fields for borehole names, a color palette drop‐down (with halftone option),
+        and gridline controls.
       - Two tables for borehole data input.
       - Buttons to import CSV data and generate plots.
       - A matplotlib canvas for displaying soil profile plots.
-      - New GUI inputs for grid line interval, grid level label toggle,
-        and text size options.
+      - New GUI inputs for grid line interval, grid level label toggle, and text size options.
     """
     COLOR_PALETTES = {
         "Geotech 12": [
@@ -198,6 +199,14 @@ class SoilProfileApp(QMainWindow):
             '#F4E1D2', '#E8D1B8', '#DCBF9E', '#D0AD84', '#C49B6A',
             '#B88850', '#AD7526', '#A1610C', '#965000', '#8A3F00',
             '#7F2E00', '#732D00'
+        ],
+        "Red Shift": [
+            "#FF0000", "#FF8000", "#FFFF00", "#BFFF00", "#80FF00", "#00FF00",
+            "#00FF80", "#00BFFF", "#0000FF", "#4000BF", "#600099", "#800080"
+        ],
+        "Reverse Red Shift": [
+            "#800080", "#600099", "#4000BF", "#0000FF", "#00BFFF", "#00FF80",
+            "#00FF00", "#80FF00", "#BFFF00", "#FFFF00", "#FF8000", "#FF0000"
         ]
     }
 
@@ -215,27 +224,36 @@ class SoilProfileApp(QMainWindow):
         layout = QVBoxLayout(left_panel)
         self.bh1_name = QLineEdit("Borehole-1")
         self.bh2_name = QLineEdit("Borehole-2")
+        layout.addWidget(QLabel("Borehole Names:"))
+        layout.addWidget(self.bh1_name)
+        layout.addWidget(self.bh2_name)
+        layout.addWidget(QPushButton("Import CSV", clicked=self.import_csv))
+        # Now add the palette drop down and halftone option after Import CSV.
         self.palette_selector = QComboBox()
         self.palette_selector.addItems(self.COLOR_PALETTES.keys())
+        self.halftone_checkbox = QCheckBox("Halftone")
+        self.halftone_checkbox.setChecked(False)
+        palette_layout = QHBoxLayout()
+        palette_layout.addWidget(QLabel("Color Palette:"))
+        palette_layout.addWidget(self.palette_selector)
+        palette_layout.addWidget(self.halftone_checkbox)
+        layout.addLayout(palette_layout)
         self.plot_width = QSpinBox()
         self.plot_width.setRange(1, 100)
         self.plot_width.setValue(2)
         self.plot_gap = QSpinBox()
         self.plot_gap.setRange(0, 100)
         self.plot_gap.setValue(15)
-        # Checkbox to toggle horizontal gridlines.
         self.grid_checkbox = QCheckBox("Show Horizontal Gridlines")
         self.grid_checkbox.setChecked(True)
-        # New inputs for gridline controls.
         grid_interval_label = QLabel("Grid Interval (m):")
         self.grid_interval_spinbox = QDoubleSpinBox()
         self.grid_interval_spinbox.setRange(0.1, 10.0)
         self.grid_interval_spinbox.setValue(1.0)
         self.grid_interval_spinbox.setSingleStep(0.1)
-        self.grid_interval_spinbox.setMaximumWidth(60)  # Reduced width.
+        self.grid_interval_spinbox.setMaximumWidth(60)
         self.grid_label_checkbox = QCheckBox("Show Grid Level Labels")
         self.grid_label_checkbox.setChecked(True)
-        # New GUI options for text sizes arranged horizontally.
         font_size_layout = QHBoxLayout()
         font_size_layout.addWidget(QLabel("Main Heading Font Sizes:"))
         font_size_layout.addWidget(QLabel("Detail"))
@@ -262,13 +280,6 @@ class SoilProfileApp(QMainWindow):
         self.borehole_level_font_size_spinbox.setValue(10)
         self.borehole_level_font_size_spinbox.setMaximumWidth(80)
         font_size_layout.addWidget(self.borehole_level_font_size_spinbox)
-        
-        layout.addWidget(QLabel("Borehole Names:"))
-        layout.addWidget(self.bh1_name)
-        layout.addWidget(self.bh2_name)
-        layout.addWidget(QLabel("Color Palette:"))
-        layout.addWidget(self.palette_selector)
-        layout.addWidget(QPushButton("Import CSV", clicked=self.import_csv))
         layout.addWidget(self.grid_checkbox)
         layout.addWidget(grid_interval_label)
         layout.addWidget(self.grid_interval_spinbox)
@@ -301,10 +312,6 @@ class SoilProfileApp(QMainWindow):
         self.setCentralWidget(main_splitter)
 
     def import_csv(self):
-        """
-        Open a CSV file and populate the appropriate borehole table.
-        Expected CSV columns: Borehole,Layer No,Layer Name,Start Level (m),End Level (m),SPT Value
-        """
         try:
             filename, _ = QFileDialog.getOpenFileName(self, "Open CSV", "", "CSV Files (*.csv)")
             if not filename:
@@ -324,20 +331,6 @@ class SoilProfileApp(QMainWindow):
             QMessageBox.critical(self, "Import Error", f"CSV Error: {str(e)}")
 
     def generate_plot(self):
-        """
-        Generate the soil profile plots.
-         - Compute a global y-range from all values for alignment.
-         - Each axis is set to this global range but displays only the discrete y-values from its own data,
-           formatted with 3 decimals.
-         - Borehole 1 displays its y-values on the right; Borehole 2 on the left.
-         - The stack bar (soil profile box) is drawn with full borders (unchanged).
-         - If enabled, horizontal gridlines are drawn in the gap between subplots over the global range,
-           with an interval from the GUI input.
-         - For each gridline, a label (with unit "mSHD" and 3 decimals) is placed at the horizontal midpoint of the gap,
-           with a vertical offset corresponding to about 0.15 m in data coordinates.
-         - The grid level labels are drawn only if enabled.
-         - The text sizes for the stack bar labels, grid labels, title, and borehole level tick labels are set via the GUI options.
-        """
         try:
             self.figure.clear()
             bh1_data = self.get_borehole_data(self.bh1_table)
@@ -451,8 +444,11 @@ class SoilProfileApp(QMainWindow):
         """
         Given a list of layer names, assign each a color from the selected palette.
         Colors cycle if there are more layers than available.
+        If the Halftone option is enabled, convert each color to a lighter version.
         """
         palette = self.COLOR_PALETTES[self.palette_selector.currentText()]
+        if self.halftone_checkbox.isChecked():
+            palette = [convert_to_lighter(color) for color in palette]
         return {layer: palette[i % len(palette)] for i, layer in enumerate(layers)}
 
     def get_borehole_data(self, table):

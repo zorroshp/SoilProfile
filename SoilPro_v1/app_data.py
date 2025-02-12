@@ -1,4 +1,8 @@
-# utils.py
+"""
+Module: app_data.py
+This module holds application‐specific data such as paper sizes for PDF export, 
+a full color palette dictionary, and helper functions (e.g. to lighten colors).
+"""
 
 # Paper sizes in inches for PDF export.
 PAPER_SIZES_INCHES = {
@@ -9,9 +13,16 @@ PAPER_SIZES_INCHES = {
     "Letter": (8.5,  11.0),
 }
 
-def convert_to_lighter(hex_color, factor=0.5):
+def convert_to_lighter(hex_color: str, factor: float = 0.5) -> str:
     """
-    Convert a hex color (e.g. '#RRGGBB') to a lighter version by blending with white.
+    Convert a hex color (e.g. '#RRGGBB') to a lighter version by blending it with white.
+
+    Args:
+        hex_color (str): The original hex color string.
+        factor (float, optional): Blending factor (0 = original; 1 = white). Defaults to 0.5.
+
+    Returns:
+        str: The lighter hex color.
     """
     r = int(hex_color[1:3], 16)
     g = int(hex_color[3:5], 16)
@@ -21,7 +32,7 @@ def convert_to_lighter(hex_color, factor=0.5):
     lb = int(b + (255 - b) * factor)
     return f"#{lr:02x}{lg:02x}{lb:02x}"
 
-# Color Palettes for the SoilPro App
+# Color Palettes for the SoilPro Application
 COLOR_PALETTES = {
     "Geotech 12": [
         '#f7fbff', '#deebf7', '#c6dbef', '#9ecae1', '#6baed6',

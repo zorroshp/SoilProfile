@@ -265,41 +265,23 @@ class SoilPro(QMainWindow):
 
     def export_pdf(self):
         """
-        Export the current soil profile plot to a scaled PDF.
+        Export the current soil profile plot (as shown on the canvas) to a PDF file.
+        The export function uses the current figure and applies the desired paper size,
+        orientation, and scale parameter. (Note: The current implementation does not modify 
+        the drawing based on the scale value; it simply prints the canvas as is.)
         """
-        borehole1_data = extract_borehole_data(self.borehole1_table)
-        borehole2_data = extract_borehole_data(self.borehole2_table)
-        if not (borehole1_data or borehole2_data):
-            QMessageBox.warning(self, "No Data", "No borehole data found.")
-            return
-        borehole_names = (self.borehole1_name_edit.text(), self.borehole2_name_edit.text())
-        font_sizes = {
-            'title': self.title_font_size_spinbox.value(),
-            'stack_bar': self.detail_font_size_spinbox.value(),
-            'borehole_level': self.level_font_size_spinbox.value()
-        }
-        grid_settings = {
-            'grid': self.grid_checkbox.isChecked(),
-            'grid_interval': self.grid_interval_spinbox.value(),
-            'grid_label': self.grid_label_checkbox.isChecked(),
-            'grid_label_font_size': self.grid_font_size_spinbox.value()
-        }
-        palette_name = self.palette_combo.currentText()
-        scale_str = self.scale_combo.currentText()
-        paper = self.paper_combo.currentText()
-        orientation = self.orientation_combo.currentText()
         output_filename, _ = QFileDialog.getSaveFileName(self, "Save PDF (Scaled)", "", "PDF Files (*.pdf)")
         if not output_filename:
             return
         try:
+            # Call the export function with the current figure, paper, orientation, and scale.
+            # The scale parameter is passed even though the current export simply prints the canvas.
             success = export_scaled_pdf(
-                borehole1_data, borehole2_data, borehole_names,
-                self.profile_width_spinbox.value(), self.borehole_spacing_spinbox.value(),
-                scale_str, paper, orientation,
-                font_sizes, grid_settings,
-                palette_name, COLOR_PALETTES,
-                self.halftone_checkbox.isChecked(),
-                convert_to_lighter, output_filename
+                self.figure,
+                self.paper_combo.currentText(),
+                self.orientation_combo.currentText(),
+                self.scale_combo.currentText(),
+                output_filename
             )
             if success:
                 QMessageBox.information(self, "Saved PDF", f"Saved scaled PDF to: {output_filename}")

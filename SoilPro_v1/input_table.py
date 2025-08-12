@@ -4,7 +4,7 @@ This module defines the InputTable widget—a customized QTableWidget for enteri
 It includes preset headers, fixed row heights, and a context menu for copy, paste, and clear operations.
 """
 
-import sys  # Added import to fix "sys is not defined" errors.
+import sys
 from library import QApplication, QTableWidget, QTableWidgetItem, QMenu, Qt
 
 class InputTable(QTableWidget):

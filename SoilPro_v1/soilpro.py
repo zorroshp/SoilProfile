@@ -1,7 +1,8 @@
 """
 Module: soilpro.py
 This is the main application module for SoilPro.
-It integrates the input table, profile plotting, and PDF export functionalities into a unified PyQt5 GUI.
+It integrates the input table, profile plotting, PDF export functionalities, and a colour type selector,
+allowing you to choose between soil-based colours and a colour palette option.
 """
 
 from library import (
@@ -16,7 +17,8 @@ import matplotlib.pyplot as plt
 from input_table import InputTable
 from plotter import extract_borehole_data, generate_borehole_profile_plot
 from pdf_export import export_scaled_pdf
-from app_data import convert_to_lighter, COLOR_PALETTES
+from app_data import convert_to_lighter, COLOR_PALETTES, SOIL_TYPE_COLOURS
+import app_data
 
 class SoilPro(QMainWindow):
     """
@@ -29,7 +31,7 @@ class SoilPro(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("SoilPro")
-        self.setWindowIcon(QIcon("soilpro_icon.png"))
+        self.setWindowIcon(QIcon("grass.ico"))
         self.setGeometry(50, 50, 1600, 950)
         self.setup_ui()
 
@@ -93,6 +95,16 @@ class SoilPro(QMainWindow):
         settings_group = QGroupBox("Plot Settings")
         settings_group.setStyleSheet("QGroupBox::title { font: bold 8pt; }")
         settings_layout = QVBoxLayout()
+
+        # Color Type Selection
+        color_type_layout = QHBoxLayout()
+        color_type_layout.setSpacing(10)
+        color_type_layout.addWidget(QLabel("Color Type:"))
+        self.color_type_combo = QComboBox()
+        self.color_type_combo.addItems(["Soil Type", "Colour Palette"])
+        self.color_type_combo.currentIndexChanged.connect(self.on_color_type_changed)
+        color_type_layout.addWidget(self.color_type_combo)
+        settings_layout.addLayout(color_type_layout)
 
         # Color Palette Settings
         palette_group = QGroupBox("Color Palette")
@@ -210,6 +222,17 @@ class SoilPro(QMainWindow):
         main_splitter.addWidget(right_panel)
         self.setCentralWidget(main_splitter)
 
+    def on_color_type_changed(self, index):
+        """
+        Enable/disable palette selection based on the chosen color type.
+        """
+        if self.color_type_combo.currentText() == "Soil Type":
+            self.palette_combo.setEnabled(False)
+            self.halftone_checkbox.setEnabled(False)
+        else:
+            self.palette_combo.setEnabled(True)
+            self.halftone_checkbox.setEnabled(True)
+
     def import_csv(self):
         """
         Import borehole data from a CSV file.
@@ -240,6 +263,7 @@ class SoilPro(QMainWindow):
         """
         Generate the soil profile plot from the input table data.
         """
+        from plotter import extract_borehole_data
         borehole1_data = extract_borehole_data(self.borehole1_table)
         borehole2_data = extract_borehole_data(self.borehole2_table)
         borehole_names = (self.borehole1_name_edit.text(), self.borehole2_name_edit.text())
@@ -254,34 +278,75 @@ class SoilPro(QMainWindow):
             'grid_label': self.grid_label_checkbox.isChecked(),
             'grid_label_font_size': self.grid_font_size_spinbox.value()
         }
-        palette_name = self.palette_combo.currentText()
+        if self.color_type_combo.currentText() == "Soil Type":
+            color_mode = "soil"
+            soil_colors = SOIL_TYPE_COLOURS
+        else:
+            color_mode = "palette"
+            soil_colors = None
+
         generate_borehole_profile_plot(
             self.figure, borehole1_data, borehole2_data, borehole_names,
             self.profile_width_spinbox.value(), self.borehole_spacing_spinbox.value(),
-            font_sizes, grid_settings, palette_name,
+            font_sizes, grid_settings, self.palette_combo.currentText(),
             COLOR_PALETTES, self.halftone_checkbox.isChecked(),
-            convert_to_lighter
+            convert_to_lighter,
+            color_mode,
+            soil_colors
         )
 
     def export_pdf(self):
         """
         Export the current soil profile plot (as shown on the canvas) to a PDF file.
-        The export function uses the current figure and applies the desired paper size,
-        orientation, and scale parameter. (Note: The current implementation does not modify 
-        the drawing based on the scale value; it simply prints the canvas as is.)
+        The export uses the selected paper size and orientation as the page, scales the drawing according to
+        the chosen scale (e.g. 1:100), and centers the vector-recreated plot on the page.
         """
         output_filename, _ = QFileDialog.getSaveFileName(self, "Save PDF (Scaled)", "", "PDF Files (*.pdf)")
         if not output_filename:
             return
+
+        from plotter import extract_borehole_data
+        borehole1_data = extract_borehole_data(self.borehole1_table)
+        borehole2_data = extract_borehole_data(self.borehole2_table)
+        borehole_names = (self.borehole1_name_edit.text(), self.borehole2_name_edit.text())
+        font_sizes = {
+            'title': self.title_font_size_spinbox.value(),
+            'stack_bar': self.detail_font_size_spinbox.value(),
+            'borehole_level': self.level_font_size_spinbox.value()
+        }
+        grid_settings = {
+            'grid': self.grid_checkbox.isChecked(),
+            'grid_interval': self.grid_interval_spinbox.value(),
+            'grid_label': self.grid_label_checkbox.isChecked(),
+            'grid_label_font_size': self.grid_font_size_spinbox.value()
+        }
+        if self.color_type_combo.currentText() == "Soil Type":
+            color_mode = "soil"
+            soil_colors = SOIL_TYPE_COLOURS
+        else:
+            color_mode = "palette"
+            soil_colors = None
+
         try:
-            # Call the export function with the current figure, paper, orientation, and scale.
-            # The scale parameter is passed even though the current export simply prints the canvas.
             success = export_scaled_pdf(
                 self.figure,
                 self.paper_combo.currentText(),
                 self.orientation_combo.currentText(),
                 self.scale_combo.currentText(),
-                output_filename
+                output_filename,
+                borehole1_data=borehole1_data,
+                borehole2_data=borehole2_data,
+                borehole_names=borehole_names,
+                plot_width=self.profile_width_spinbox.value(),
+                plot_gap=self.borehole_spacing_spinbox.value(),
+                font_sizes=font_sizes,
+                grid_settings=grid_settings,
+                palette_name=self.palette_combo.currentText(),
+                palettes=COLOR_PALETTES,
+                halftone=self.halftone_checkbox.isChecked(),
+                convert_to_lighter_func=convert_to_lighter,
+                color_mode=color_mode,
+                soil_type_colors=soil_colors
             )
             if success:
                 QMessageBox.information(self, "Saved PDF", f"Saved scaled PDF to: {output_filename}")
